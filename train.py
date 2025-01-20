@@ -14,6 +14,7 @@ def train(
         block_size: int,
         emb_size: int,
         hidden_dim: int,
+        num_heads: int,
         num_layers: int,
 ):
     # Handle paths and 
@@ -30,7 +31,15 @@ def train(
 
     # Initialize Network 
     vocab_size = metadata["vocab_size"]
-    decoder = Decoder(vocab_size, emb_size, hidden_dim, 0.2, num_layers)
+    decoder = Decoder(
+        vocab_size, 
+        emb_size, 
+        hidden_dim, 
+        num_heads, 
+        block_size, 
+        0.2, 
+        num_layers
+    )
 
     # Initialize Optimizer and Loss
     optimizer = AdamW(decoder.parameters())
@@ -67,7 +76,8 @@ if __name__ == "__main__":
     parser.add_argument("--max_iters", type=int, default=1000)
     parser.add_argument("--block_size", type=int, default=27)
     parser.add_argument("--emb_size", type=int, default=11)
-    parser.add_argument("--hidden_dim", type=int, default=13)
+    parser.add_argument("--hidden_dim", type=int, default=32)
+    parser.add_argument("--num_heads", type=int, default=4)
     parser.add_argument("--num_layers", type=int, default=4)
     args = parser.parse_args()
 
@@ -77,5 +87,6 @@ if __name__ == "__main__":
         block_size = args.block_size,
         emb_size = args.emb_size,
         hidden_dim = args.hidden_dim,
+        num_heads = args.num_heads,
         num_layers = args.num_layers
     )

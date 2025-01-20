@@ -1,5 +1,8 @@
+import math
+
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class MLP(nn.Module):
@@ -23,19 +26,77 @@ class MLP(nn.Module):
         return x
 
 
+class CausalAttention(nn.Module):
+
+    def __init__(
+            self,
+            hidden_dim: int,
+            num_heads: int,
+            block_size: int,
+            dropout: float,
+    ):
+        super().__init__()
+        assert hidden_dim % num_heads == 0
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+
+        self.qkv_proj = nn.Linear(hidden_dim, 3 * hidden_dim)
+        self.out_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.attn_dropout = nn.Dropout(dropout)
+        self.resid_dropout = nn.Dropout(dropout)
+
+        self.register_buffer(
+            "causal_mask",
+            torch.tril(torch.ones(
+                block_size, block_size
+            )).view(1, 1, block_size, block_size) 
+        )
+
+    def forward(self, x):
+        B, L, D = x.size()
+
+        q, k, v = self.qkv_proj(x).split(
+            self.hidden_dim, dim=2
+        )
+        q = q.view(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
+        k = k.view(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
+        v = v.view(B, L, self.num_heads, D // self.num_heads).transpose(1, 2)
+        
+        scores = q @ k.transpose(-2, -1)
+        scores /= math.sqrt(k.size(-1))
+        scores = scores.masked_fill(
+            self.causal_mask[:, :, :L, :L] == 0,
+            float("-inf")
+        )
+        probs = F.softmax(scores, dim=-1)
+        probs = self.attn_dropout(probs)
+
+
+        outs = probs @ v
+        outs = outs.transpose(1, 2).contiguous().view(B, L, D)
+        outs = self.resid_dropout(self.out_proj(outs))
+        
+        return outs
+
+
 class Block(nn.Module):
 
     def __init__(
             self,
             hidden_dim: int,
+            num_heads: int,
+            block_size: int,
             dropout: float,
         ):
         super().__init__()
         self.ln_1 = nn.LayerNorm(hidden_dim)
+        self.attn = CausalAttention(hidden_dim, num_heads, block_size, dropout)
+        self.ln_2 = nn.LayerNorm(hidden_dim)
         self.MLP = MLP(hidden_dim, dropout)
 
     def forward(self, x):
-        x = x + self.MLP(self.ln_1(x))
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.MLP(self.ln_2(x))
         return x
 
 
@@ -46,6 +107,8 @@ class Decoder(nn.Module):
             vocab_size: int,
             embedding_dim: int,
             hidden_dim: int,
+            num_heads: int,
+            block_size: int,
             dropout: float,
             num_layers: int,
         ):
@@ -53,14 +116,14 @@ class Decoder(nn.Module):
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.emb_proj = nn.Linear(embedding_dim, hidden_dim)
         self.blocks = nn.ModuleList([
-            Block(hidden_dim, dropout) for _ in range(num_layers)
+            Block(hidden_dim, num_heads, block_size, dropout) for _ in range(num_layers)
         ])
         self.logit_layer = nn.Linear(hidden_dim, vocab_size)
 
     def forward(self, x):
         x = self.emb(x)
         x = self.emb_proj(x)
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             x = block(x)
         logits = self.logit_layer(x)
         return logits
