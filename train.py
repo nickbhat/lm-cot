@@ -1,11 +1,9 @@
-import numpy as np
 from pathlib import Path
 import pickle as pkl
 
-import torch
 from torch import nn
 from torch.optim import AdamW
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader
 
 from data import BlockStreamDataset
 from network import Decoder
@@ -16,6 +14,7 @@ def train(
         block_size: int,
         emb_size: int,
         hidden_dim: int,
+        num_layers: int,
 ):
     # Handle paths and 
     data_path = Path(".") / Path("nanoGPT") / Path("data") / Path("shakespeare_char")
@@ -31,7 +30,7 @@ def train(
 
     # Initialize Network 
     vocab_size = metadata["vocab_size"]
-    decoder = Decoder(vocab_size, emb_size, hidden_dim)
+    decoder = Decoder(vocab_size, emb_size, hidden_dim, 0.2, num_layers)
 
     # Initialize Optimizer and Loss
     optimizer = AdamW(decoder.parameters())
@@ -52,7 +51,7 @@ def train(
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-        
+
         it += 1
 
         if it % 50 == 0:
@@ -69,6 +68,7 @@ if __name__ == "__main__":
     parser.add_argument("--block_size", type=int, default=27)
     parser.add_argument("--emb_size", type=int, default=11)
     parser.add_argument("--hidden_dim", type=int, default=13)
+    parser.add_argument("--num_layers", type=int, default=4)
     args = parser.parse_args()
 
     train(
@@ -76,5 +76,6 @@ if __name__ == "__main__":
         max_iters = args.max_iters,
         block_size = args.block_size,
         emb_size = args.emb_size,
-        hidden_dim = args.hidden_dim
+        hidden_dim = args.hidden_dim,
+        num_layers = args.num_layers
     )
