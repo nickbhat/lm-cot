@@ -32,15 +32,16 @@ def train(
 
     # Initialize Network 
     vocab_size = metadata["vocab_size"]
-    decoder = Decoder(
-        vocab_size, 
-        emb_size, 
-        hidden_dim, 
-        num_heads, 
-        block_size, 
-        0.2, 
-        num_layers
-    )
+    model_args = {
+        "vocab_size": vocab_size,
+        "embedding_dim": emb_size,
+        "hidden_dim": hidden_dim,
+        "num_heads": num_heads,
+        "block_size": block_size,
+        "dropout": 0.2,
+        "num_layers": num_layers
+    }
+    decoder = Decoder(**model_args)
 
     # Initialize Optimizer and Loss
     optimizer = AdamW(decoder.parameters())
@@ -72,7 +73,8 @@ def train(
                 "model": decoder.state_dict(),
                 "optimizer": optimizer.state_dict(),
                 "iter_num": it,
-                "loss": loss.item()
+                "loss": loss.item(),
+                "model_args": model_args
             }
             out_dir = Path("checkpoints")
             torch.save(checkpoint, out_dir / Path("ckpt.pt"))

@@ -113,6 +113,14 @@ class Decoder(nn.Module):
             num_layers: int,
         ):
         super().__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.block_size = block_size
+        self.dropout = dropout
+        self.num_layers = num_layers
+
         self.emb = nn.Embedding(vocab_size, embedding_dim)
         self.emb_proj = nn.Linear(embedding_dim, hidden_dim)
         self.blocks = nn.ModuleList([
@@ -127,3 +135,22 @@ class Decoder(nn.Module):
             x = block(x)
         logits = self.logit_layer(x)
         return logits
+    
+    def sample(self, x, max_tokens, temp, topk):
+        y = x.unsqueeze(0)
+        for _ in range(max_tokens):
+            # Crop context
+            ctx = y if y.size(1) <= self.block_size else y[:, -self.block_size:]
+            logits = self(ctx)
+
+            # Calculate probs for last position
+            logits = logits[:, -1, :] / temp
+            tops, _ = torch.topk(logits, min(topk, self.vocab_size))
+            logits[logits < tops[:, [-1]]] = float("-Inf")
+            probs = F.softmax(logits, dim=-1)
+
+            # Sample tokens and add to end
+            token = torch.multinomial(probs, num_samples=1)
+            y = torch.cat((y, token), dim=1)
+
+        return y
