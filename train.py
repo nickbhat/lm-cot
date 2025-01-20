@@ -1,6 +1,7 @@
 from pathlib import Path
 import pickle as pkl
 
+import torch
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
@@ -67,6 +68,14 @@ def train(
             print(f"Iter: {it}, Loss: {loss.item()}") 
 
         if it > max_iters:
+            checkpoint = {
+                "model": decoder.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "iter_num": it,
+                "loss": loss.item()
+            }
+            out_dir = Path("checkpoints")
+            torch.save(checkpoint, out_dir / Path("ckpt.pt"))
             break
 
 if __name__ == "__main__":
