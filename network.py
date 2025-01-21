@@ -122,6 +122,7 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
 
         self.emb = nn.Embedding(vocab_size, embedding_dim)
+        self.pos_enc = nn.Embedding(block_size, embedding_dim)
         self.emb_proj = nn.Linear(embedding_dim, hidden_dim)
         self.blocks = nn.ModuleList([
             Block(hidden_dim, num_heads, block_size, dropout) for _ in range(num_layers)
@@ -129,7 +130,8 @@ class Decoder(nn.Module):
         self.logit_layer = nn.Linear(hidden_dim, vocab_size)
 
     def forward(self, x):
-        x = self.emb(x)
+        pos = torch.arange(0, x.size(1), dtype=torch.long)
+        x = self.emb(x) + self.pos_enc(pos)
         x = self.emb_proj(x)
         for block in self.blocks:
             x = block(x)
