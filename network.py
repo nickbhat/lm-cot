@@ -156,3 +156,19 @@ class Decoder(nn.Module):
             y = torch.cat((y, token), dim=1)
 
         return y
+    
+    def configure_optimizers(self, weight_decay, lr, betas):
+        # Filter down params
+        param_dict = {
+            pn: p for pn, p in self.named_parameters() if p.requires_grad
+        }
+        # Decay all 2D params. Don't decay biases and layernorms.
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {"params": decay_params, "weight_decay": weight_decay},
+            {"params": nodecay_params, "weight_decay": 0.0}
+        ]
+        optimizer = torch.optim.AdamW(optim_groups, lr=lr, betas=betas)
+
+        return optimizer
